@@ -102,6 +102,13 @@ def elasticsearch_url(connection, type=None, endpoint=None, params=None, omit_in
 ###############################################################
 # HTTP Requests
 
+def _set_content_type(requests_kwargs, content_type="application/json"):
+    if "headers" not in requests_kwargs:
+        requests_kwargs["headers"] = {}
+    if "Content-Type" not in requests_kwargs["headers"]:
+        requests_kwargs["headers"]["Content-Type"] = content_type
+
+
 def _do_head(url, conn, **kwargs):
     if conn.auth is not None:
         if kwargs is None:
@@ -126,6 +133,7 @@ def _do_post(url, conn, data=None, **kwargs):
             kwargs = {}
         kwargs["auth"] = conn.auth
     kwargs["verify"] = conn.verify_ssl
+    _set_content_type(kwargs)
     return requests.post(url, data, **kwargs)
 
 
@@ -135,6 +143,7 @@ def _do_put(url, conn, data=None, **kwargs):
             kwargs = {}
         kwargs["auth"] = conn.auth
     kwargs["verify"] = conn.verify_ssl
+    _set_content_type(kwargs)
     return requests.put(url, data, **kwargs)
 
 
