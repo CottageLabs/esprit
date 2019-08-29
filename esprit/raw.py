@@ -1,6 +1,7 @@
 # The Raw ElasticSearch functions, no frills, just wrappers around the HTTP calls
 
-import requests, json, urllib
+import requests, json, urllib, time, random
+from requests import Session
 from models import QueryBuilder
 from esprit import versions
 
@@ -20,12 +21,20 @@ DEFAULT_VERSION = "0.90.13"
 # Connection to the index
 
 class Connection(object):
-    def __init__(self, host, index, port=9200, auth=None, verify_ssl=True):
+    def __init__(self, host, index, port=9200, auth=None, verify_ssl=True, **kwargs):
         self.host = host
+        if isinstance(host,list):
+            self.hosts = host
+            self.host = random.choice(host)
+        else:
+            self.hosts = []
+            self.host = host
         self.index = index
         self.port = port
         self.auth = auth
         self.verify_ssl = verify_ssl
+        self.redo = kwargs['redo'] if 'redo' in kwargs else ['502','503','504']
+        self.retries = kwargs['retries'] if 'retries' in kwargs else 5
 
         # make sure that host starts with "http://" or equivalent
         if not self.host.startswith("http"):
@@ -37,10 +46,10 @@ class Connection(object):
             self.host = self.host[:self.host.rindex(":")]
 
 
-def make_connection(connection, host, port, index, auth=None):
+def make_connection(connection, host, port, index, auth=None, **kwargs):
     if connection is not None:
         return connection
-    return Connection(host, index, port, auth)
+    return Connection(host, index, port, auth, True, **kwargs)
 
 
 ####################################################################
@@ -98,13 +107,49 @@ def elasticsearch_url(connection, type=None, endpoint=None, params=None, omit_in
 ###############################################################
 # HTTP Requests
 
+class RetrySession(Session):
+    def request(self, method, url, **kwargs):
+        if 'hosts' in kwargs:
+            possible_host_ips = kwargs['hosts']
+            del kwargs['hosts']
+        else:
+            possible_host_ips = []
+        if 'retries' in kwargs:
+            retries = kwargs['retries']
+            del kwargs['retries']
+        else:
+            retries = 5
+        if 'redo' in kwargs:
+            redo = kwargs['redo']
+            del kwargs['redo']
+        else:
+            redo = [502,503,504]
+        counter = 0
+        while counter < retries:
+            if len(possible_host_ips) > 1 and counter > 0:
+                current = url.split('://')[1].split('/')[0]
+                host = False
+                while host == False or host == current:
+                    host = random.choice(possible_host_ips)
+                url = url.replace('://'+current+'/','://'+host+'/')
+            r = super(RetrySession, self).request(method, url, **kwargs)
+            if r.status_code in redo:
+                counter += 1
+                time.sleep(counter * counter)
+            else:
+                return r
+
 def _do_head(url, conn, **kwargs):
     if conn.auth is not None:
         if kwargs is None:
             kwargs = {}
         kwargs["auth"] = conn.auth
     kwargs["verify"] = conn.verify_ssl
-    return requests.head(url, **kwargs)
+    if 'hosts' not in kwargs: kwargs['hosts'] = conn.hosts
+    if 'redo' not in kwargs: kwargs['redo'] = conn.redo
+    if 'retries' not in kwargs: kwargs['retries'] = conn.retries
+    rs = RetrySession()
+    return rs.head(url, **kwargs)
 
 
 def _do_get(url, conn, **kwargs):
@@ -113,7 +158,11 @@ def _do_get(url, conn, **kwargs):
             kwargs = {}
         kwargs["auth"] = conn.auth
     kwargs["verify"] = conn.verify_ssl
-    return requests.get(url, **kwargs)
+    if 'hosts' not in kwargs: kwargs['hosts'] = conn.hosts
+    if 'redo' not in kwargs: kwargs['redo'] = conn.redo
+    if 'retries' not in kwargs: kwargs['retries'] = conn.retries
+    rs = RetrySession()
+    return rs.get(url, **kwargs)
 
 
 def _do_post(url, conn, data=None, **kwargs):
@@ -122,7 +171,11 @@ def _do_post(url, conn, data=None, **kwargs):
             kwargs = {}
         kwargs["auth"] = conn.auth
     kwargs["verify"] = conn.verify_ssl
-    return requests.post(url, data, **kwargs)
+    if 'hosts' not in kwargs: kwargs['hosts'] = conn.hosts
+    if 'redo' not in kwargs: kwargs['redo'] = conn.redo
+    if 'retries' not in kwargs: kwargs['retries'] = conn.retries
+    rs = RetrySession()
+    return rs.post(url, data, **kwargs)
 
 
 def _do_put(url, conn, data=None, **kwargs):
@@ -131,7 +184,11 @@ def _do_put(url, conn, data=None, **kwargs):
             kwargs = {}
         kwargs["auth"] = conn.auth
     kwargs["verify"] = conn.verify_ssl
-    return requests.put(url, data, **kwargs)
+    if 'hosts' not in kwargs: kwargs['hosts'] = conn.hosts
+    if 'redo' not in kwargs: kwargs['redo'] = conn.redo
+    if 'retries' not in kwargs: kwargs['retries'] = conn.retries
+    rs = RetrySession()
+    return rs.put(url, data, **kwargs)
 
 
 def _do_delete(url, conn, **kwargs):
@@ -140,7 +197,11 @@ def _do_delete(url, conn, **kwargs):
             kwargs = {}
         kwargs["auth"] = conn.auth
     kwargs["verify"] = conn.verify_ssl
-    return requests.delete(url, **kwargs)
+    if 'hosts' not in kwargs: kwargs['hosts'] = conn.hosts
+    if 'redo' not in kwargs: kwargs['redo'] = conn.redo
+    if 'retries' not in kwargs: kwargs['retries'] = conn.retries
+    rs = RetrySession()
+    return rs.delete(url, **kwargs)
 
 
 ###############################################################
