@@ -86,7 +86,7 @@ class DAO(object):
         if updated:
             self.data['last_updated'] = now
 
-        resp = raw.store(conn, type, self.data, self.id)
+        resp = raw.store(conn, type, self.data, self.id, es_version=self.__es_version__)
         if resp.status_code < 200 or resp.status_code >= 400:
             raise raw.ESWireException(resp)
 
@@ -107,7 +107,7 @@ class DAO(object):
         while True:
             if max_wait is not False and waited >= max_wait:
                 break
-            res = raw.search(conn, type, q)
+            res = raw.search(conn, type, q, es_version=self.__es_version__)
             j = raw.unpack_result(res)
             if len(j) == 0:
                 time.sleep(0.5)
@@ -133,7 +133,7 @@ class DAO(object):
         while True:
             if max_wait is not False and waited >= max_wait:
                 break
-            res = raw.search(conn, type, q)
+            res = raw.search(conn, type, q, es_version=self.__es_version__)
             j = raw.unpack_result(res)
             if len(j) == 0:
                 time.sleep(0.5)
@@ -163,13 +163,13 @@ class DAO(object):
 
         # in the simple case of one type, just get on and issue the delete
         if len(types) == 1:
-            raw.delete(conn, types[0], self.id)
+            raw.delete(conn, types[0], self.id, es_version=self.__es_version__)
 
         # otherwise, check all the types until we find the object, then issue the delete there
         for t in types:
-            o = raw.get(conn, t, self.id)
+            o = raw.get(conn, t, self.id, es_version=self.__es_version__)
             if o is not None:
-                raw.delete(conn, t, self.id)
+                raw.delete(conn, t, self.id, es_version=self.__es_version__)
 
     @classmethod
     def makeid(cls):
@@ -189,9 +189,9 @@ class DAO(object):
         if "id" not in obj and "query" not in obj:
             raise StoreException("no id or query provided for remove action")
         if "id" in obj:
-            raw.delete(conn, obj.get("index"), obj.get("id"))
+            raw.delete(conn, obj.get("index"), obj.get("id"), es_version=self.__es_version__)
         elif "query" in obj:
-            raw.delete_by_query(conn, obj.get("index"), obj.get("query"))
+            raw.delete_by_query(conn, obj.get("index"), obj.get("query"), es_version=self.__es_version__)
 
     def _action_store(self, conn, store_action):
         obj = store_action.get("store")
@@ -199,7 +199,7 @@ class DAO(object):
             raise StoreException("no index provided for store action")
         if "record" not in obj:
             raise StoreException("no record provided for store action")
-        raw.store(conn, obj.get("index"), obj.get("record"), obj.get("id"))
+        raw.store(conn, obj.get("index"), obj.get("record"), obj.get("id"), es_version=self.__es_version__)
 
     ##################################################
     # if you are subclassing, you need to implement these
@@ -285,7 +285,7 @@ class DomainObject(DAO):
             return None
         try:
             for t in types:
-                resp = raw.get(conn, t, id_)
+                resp = raw.get(conn, t, id_, es_version=cls.__es_version__)
                 if resp.status_code == 404:
                     continue
                 else:
@@ -376,7 +376,7 @@ class DomainObject(DAO):
                     should_terms[s] = [should_terms[s]]
                 query["query"]["bool"]["must"].append({"terms": {s: should_terms[s]}})
 
-        r = raw.search(conn, types, query)
+        r = raw.search(conn, types, query, es_version=cls.__es_version__)
         return r.json()
 
     @classmethod

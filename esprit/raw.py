@@ -159,7 +159,9 @@ def _do_delete(url, conn, **kwargs):
 ###############################################################
 # Regular Search
 
-def search(connection, type=None, query=None, method="POST", url_params=None):
+def search(connection, type=None, query=None, method="POST", url_params=None, es_version=DEFAULT_VERSION):
+    if es_version.startswith("7"):
+        type = ""
     url = elasticsearch_url(connection, type, "_search", url_params)
 
     if query is None:
@@ -223,7 +225,9 @@ def unpack_scroll(requests_response):
 #################################################################
 # Record retrieval
 
-def get(connection, type, id):
+def get(connection, type, id, es_version=DEFAULT_VERSION):
+    if es_version.startswith("7"):
+        type = "_doc"
     url = elasticsearch_url(connection, type, endpoint=id)
     resp = _do_get(url, connection)
     return resp
@@ -244,6 +248,7 @@ def mget(connection, type, ids, fields=None):
         fields = [] if fields is None else fields if isinstance(fields, list) else [fields]
         for id in ids:
             docs["docs"].append({"_id": id, "fields": fields})
+    # FIXME: how does this work after es7?
     url = elasticsearch_url(connection, type, endpoint="_mget")
     resp = _do_post(url, connection, data=json.dumps(docs))
     return resp
@@ -309,6 +314,8 @@ def get_mapping(connection, type, es_version=DEFAULT_VERSION):
 # Existence checks
 
 def type_exists(connection, type, es_version=DEFAULT_VERSION):
+    if es_version.startswith("7"):
+        return False
     url = elasticsearch_url(connection, type)
     if versions.type_get(es_version):
         resp = _do_get(url, connection)
@@ -355,7 +362,9 @@ def create_index(connection, mapping=None, es_version=DEFAULT_VERSION):
 ############################################################
 # Store records
 
-def store(connection, type, record, id=None, params=None):
+def store(connection, type, record, id=None, params=None, es_version=DEFAULT_VERSION):
+    if es_version.startswith("7"):
+        type = "_doc"
     url = elasticsearch_url(connection, type, endpoint=id, params=params)
     if id is not None:
         resp = _do_put(url, connection, data=json.dumps(record))
@@ -395,14 +404,18 @@ def to_bulk_single_rec(record, idkey="id", index='', type_='', bulk_type="index"
     return data
 
 
-def bulk(connection, records, idkey='id', type_='', bulk_type="index", **kwargs):
+def bulk(connection, records, idkey='id', type_='', bulk_type="index", es_version=DEFAULT_VERSION, **kwargs):
+    if es_version.startswith("7"):
+        type = "_doc"
     data = to_bulk(records, idkey=idkey, bulk_type=bulk_type, **kwargs)
     url = elasticsearch_url(connection, type_, endpoint="_bulk")
     resp = _do_post(url, connection, data=data)
     return resp
 
 
-def raw_bulk(connection, data, type=""):
+def raw_bulk(connection, data, type="", es_version=DEFAULT_VERSION):
+    if es_version.startswith("7"):
+        type = "_doc"
     url = elasticsearch_url(connection, type, endpoint="_bulk")
     resp = _do_post(url, connection, data=data)
     return resp
@@ -411,13 +424,17 @@ def raw_bulk(connection, data, type=""):
 ############################################################
 # Delete records
 
-def delete(connection, type=None, id=None):
+def delete(connection, type=None, id=None, es_version=DEFAULT_VERSION):
+    if es_version.startswith("7"):
+        type = "_doc"
     url = elasticsearch_url(connection, type, endpoint=id)
     resp = _do_delete(url, connection)
     return resp
 
 
 def delete_by_query(connection, type, query, es_version=DEFAULT_VERSION):
+    if es_version.startswith("7"):
+        type = "_doc"
     url = elasticsearch_url(connection, type, endpoint="_query")
     if "query" in query and es_version.startswith("0.9"):
         # we have to unpack the query, as the endpoint covers that
@@ -433,7 +450,9 @@ def to_bulk_del(ids):
     return data
 
 
-def bulk_delete(connection, type, ids):
+def bulk_delete(connection, type, ids, es_version=DEFAULT_VERSION):
+    if es_version.startswith("7"):
+        type = "_doc"
     data = to_bulk_del(ids)
     url = elasticsearch_url(connection, type, endpoint="_bulk")
     resp = _do_post(url, connection, data=data)
