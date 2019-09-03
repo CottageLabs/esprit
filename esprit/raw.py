@@ -262,7 +262,11 @@ def unpack_mget(requests_response):
 
 def total_results(requests_response):
     j = requests_response.json()
-    return j.get("hits", {}).get("total", 0)
+    total = j.get("hits", {}).get("total", 0)
+    # to handle different ways that ES has returned total in different versions
+    if isinstance(total, dict):
+        return total.get("value")
+    return total
 
 ####################################################################
 # Mappings
