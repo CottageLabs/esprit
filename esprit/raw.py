@@ -1,7 +1,7 @@
 # The Raw ElasticSearch functions, no frills, just wrappers around the HTTP calls
 
-import requests, json, urllib
-from models import QueryBuilder
+import requests, json, urllib.request, urllib.parse, urllib.error
+from .models import QueryBuilder
 from esprit import versions
 
 
@@ -11,6 +11,10 @@ class ESWireException(Exception):
 
     def __str__(self):
         return repr(self.value)
+
+
+class BulkException(Exception):
+    pass
 
 
 DEFAULT_VERSION = "0.90.13"
@@ -87,7 +91,7 @@ def elasticsearch_url(connection, type=None, endpoint=None, params=None, omit_in
     # FIXME: NOT URL SAFE - do this properly
     if params is not None:
         args = []
-        for k, v in params.iteritems():
+        for k, v in params.items():
             args.append(k + "=" + v)
         q = "&".join(args)
         url += "?" + q
@@ -159,7 +163,7 @@ def search(connection, type=None, query=None, method="POST", url_params=None):
         headers = {"content-type": "application/json"}
         resp = _do_post(url, connection, data=json.dumps(query), headers=headers)
     elif method == "GET":
-        resp = _do_get(url + "?source=" + urllib.quote_plus(json.dumps(query)), connection)
+        resp = _do_get(url + "?source=" + urllib.parse.quote_plus(json.dumps(query)), connection)
     return resp
 
 
@@ -181,8 +185,11 @@ def get_facet_terms(json_result, facet_name):
 # Scroll search
 
 
-def initialise_scroll(connection, type=None, query=None, keepalive="1m"):
-    return search(connection, type, query, url_params={"scroll": keepalive})
+def initialise_scroll(connection, type=None, query=None, keepalive="1m", scan=False):
+    url_params = {"scroll": keepalive}
+    if scan:
+        url_params["search_type"] = "scan"
+    return search(connection, type, query, url_params=url_params)
 
 
 def scroll_next(connection, scroll_id, keepalive="1m"):
@@ -238,6 +245,10 @@ def unpack_mget(requests_response):
     objects = [i.get("_source") if "_source" in i else i.get("fields") for i in j.get("docs")]
     return objects
 
+
+def total_results(requests_response):
+    j = requests_response.json()
+    return j.get("hits", {}).get("total", 0)
 
 ####################################################################
 # Mappings
@@ -307,7 +318,7 @@ def alias_exists(connection, alias):
     aurl = elasticsearch_url(connection, endpoint="_aliases")
     resp = _do_get(aurl, connection)
     if index_exists(connection):
-        return alias in resp.json()[connection.index]['aliases'].keys()
+        return alias in list(resp.json()[connection.index]['aliases'].keys())
     else:
         return False
 
@@ -344,27 +355,39 @@ def store(connection, type, record, id=None, params=None):
     return resp
 
 
-def to_bulk(records, idkey="id", index='', type_=''):
+def to_bulk(records, idkey="id", index='', type_='', bulk_type="index", **kwargs):
     data = ''
     for r in records:
-        data += to_bulk_single_rec(r, idkey=idkey, index=index, type_=type_)
+        data += to_bulk_single_rec(r, idkey=idkey, index=index, type_=type_, bulk_type=bulk_type, **kwargs)
     return data
 
 
-def to_bulk_single_rec(record, idkey="id", index='', type_=''):
+def to_bulk_single_rec(record, idkey="id", index='', type_='', bulk_type="index", **kwargs):
     data = ''
-    datadict = {'index': {'_id': record[idkey]}}
+
+    idpath = idkey.split(".")
+    context = record
+    for pathseg in idpath:
+        if pathseg in context:
+            context = context[pathseg]
+        else:
+            raise BulkException("'{0}' not available in record to generate bulk _id: {1}".format(idkey, json.dumps(record)))
+
+    datadict = {bulk_type: {'_id': context}}
     if index:
-        datadict['index']['_index'] = index
+        datadict[bulk_type]['_index'] = index
     if type_:
-        datadict['index']['_type'] = type_
+        datadict[bulk_type]['_type'] = type_
+
+    datadict[bulk_type].update(kwargs)
+
     data += json.dumps(datadict) + '\n'
     data += json.dumps(record) + '\n'
     return data
 
 
-def bulk(connection, records, idkey='id', type_=''):
-    data = to_bulk(records, idkey=idkey)
+def bulk(connection, records, idkey='id', type_='', bulk_type="index", **kwargs):
+    data = to_bulk(records, idkey=idkey, bulk_type=bulk_type, **kwargs)
     url = elasticsearch_url(connection, type_, endpoint="_bulk")
     resp = _do_post(url, connection, data=data)
     return resp
@@ -374,6 +397,7 @@ def raw_bulk(connection, data, type=""):
     url = elasticsearch_url(connection, type, endpoint="_bulk")
     resp = _do_post(url, connection, data=data)
     return resp
+
 
 ############################################################
 # Delete records
@@ -446,5 +470,5 @@ def post_alias(connection, alias_actions):
 def list_types(connection):
     url = elasticsearch_url(connection, "_mapping")
     resp = _do_get(url, connection).json()
-    index = resp.keys()[0]
-    return resp[index]['mappings'].keys()
+    index = list(resp.keys())[0]
+    return list(resp[index]['mappings'].keys())
