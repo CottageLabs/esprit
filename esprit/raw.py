@@ -25,11 +25,13 @@ DEFAULT_VERSION = "0.90.13"
 
 class Connection(object):
     def __init__(self, host, index, port=9200, auth=None, verify_ssl=True):
+        """ Initialise a connection to an ES index. Use index='' (empty string) for index-per-type. """
         self.host = host
         self.index = index
         self.port = port
         self.auth = auth
         self.verify_ssl = verify_ssl
+        self.index_per_type = self.index == ''
 
         # make sure that host starts with "http://" or equivalent
         if not self.host.startswith("http"):
@@ -81,7 +83,9 @@ def elasticsearch_url(connection, type=None, endpoint=None, params=None, omit_in
 
     url = host + index
     if type is not None and type != "":
-        url += "/" + type
+        if not url.endswith('/'):
+            url += '/'
+        url += type
 
     if endpoint is not None:
         if not url.endswith("/"):
