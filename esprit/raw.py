@@ -299,7 +299,10 @@ def put_mapping(connection, type=None, mapping=None, make_index=True, es_version
 
     if not index_exists(connection, type):
         if make_index:
-            create_index(connection, es_version=es_version)
+            if connection.index_per_type:
+                create_type_index(connection, type, es_version=es_version)
+            else:
+                create_index(connection, es_version=es_version)
         else:
             raise ESWireException("index '" + str(connection.index) + "' does not exist")
 
