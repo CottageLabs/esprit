@@ -75,12 +75,18 @@ def elasticsearch_url(connection, type=None, endpoint=None, params=None, omit_in
 
     # Re-create the connection if we are using index-per-type
     if type is not None and connection.index_per_type:
-        connection = type_to_index(connection, type)
+
+        # If this request comes from the put_mapping endpoint, we have more shuffling to do
+        if type == '_mapping' and endpoint:
+            connection = type_to_index(connection, endpoint)
+            endpoint = INDEX_PER_TYPE_SUBSTITUTE
+        else:
+            connection = type_to_index(connection, type)
 
         # Apply the dummy type only if we don't want to target the whole index
         if target_index:
             type = None
-        else:
+        elif type != '_mapping':
             type = INDEX_PER_TYPE_SUBSTITUTE
 
     index = connection.index
@@ -307,11 +313,11 @@ def put_mapping(connection, type=None, mapping=None, make_index=True, es_version
             raise ESWireException("index '" + str(connection.index) + "' does not exist")
 
     if versions.mapping_url_0x(es_version):
-        url = elasticsearch_url(connection, type, "_mapping")
+        url = elasticsearch_url(connection, type=type, endpoint="_mapping")
         r = _do_put(url, connection, json.dumps(mapping))
         return r
     else:
-        url = elasticsearch_url(connection, "_mapping", type)
+        url = elasticsearch_url(connection, type="_mapping", endpoint=type)
         r = _do_put(url, connection, json.dumps(mapping))
         return r
 
