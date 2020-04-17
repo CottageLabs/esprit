@@ -407,6 +407,12 @@ def _do_create_index(connection, iurl, mapping, es_version):
     return resp
 
 
+def list_indexes(connection):
+    url = elasticsearch_url(connection, endpoint='_status', omit_index=True)
+    resp = _do_get(url, connection)
+    return list(resp.json().get('indices').keys())
+
+
 ############################################################
 # Store records
 
