@@ -83,11 +83,13 @@ def elasticsearch_url(connection, type=None, endpoint=None, params=None, omit_in
         else:
             connection = type_to_index(connection, type)
 
-        # Apply the dummy type only if we don't want to target the whole index
-        if target_index:
-            type = None
-        elif type != '_mapping':
+        # If we're not putting the mappings, substitute the type for our default dummy type
+        if type != '_mapping':
             type = INDEX_PER_TYPE_SUBSTITUTE
+
+    # If we explicitly want to target the whole index, drop the type from the params
+    if target_index:
+        type = None
 
     index = connection.index
     host = connection.host
@@ -407,11 +409,33 @@ def _do_create_index(connection, iurl, mapping, es_version):
     return resp
 
 
+# List and Delete indexes
+
 def list_indexes(connection):
     url = elasticsearch_url(connection, endpoint='_status', omit_index=True)
     resp = _do_get(url, connection)
     return list(resp.json().get('indices').keys())
 
+
+def delete_index_by_prefix(conn, index_prefix):
+    """
+    Delete all indexes starting with the given prefix. Remember that a complete match will also result in a delete, i.e.
+    you may wish to include the separator so you don't delete too much (index_prefix='prefix-') so you don't delete
+    an index just called 'prefix'.
+    """
+    indexes = [i for i in list_indexes(connection=conn) if i.startswith(index_prefix)]
+
+    # Create a new Connection instance for the delete with all of the matching indexes
+    del_conn = Connection(conn.host, indexes, conn.port, conn.auth, conn.verify_ssl)
+    url = elasticsearch_url(del_conn, target_index=True)
+    resp = _do_delete(url, del_conn)
+    return resp
+
+
+def delete_index(conn, type=None):
+    url = elasticsearch_url(conn, type=type, target_index=True)
+    resp = _do_delete(url, conn)
+    return resp
 
 ############################################################
 # Store records
