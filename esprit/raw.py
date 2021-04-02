@@ -22,6 +22,7 @@ class IndexPerTypeException(Exception):
 
 
 DEFAULT_VERSION = "0.90.13"
+CT_HEADER = {'Content-Type': 'application/json'}
 
 # This is the type used when we are using the index-per type mapping pattern (ES < 7.0)
 # Ideally, this would be '_doc' but underscores were disallowed until ES 6.2
@@ -170,8 +171,10 @@ def _do_post(url, conn, data=None, **kwargs):
             kwargs = {}
         kwargs["auth"] = conn.auth
     kwargs["verify"] = conn.verify_ssl
+    if 'headers' in kwargs:
+        kwargs['headers'].update(CT_HEADER)
     logger.debug(url)
-    return requests.post(url, data, **kwargs)
+    return requests.post(url, data, headers=kwargs.get('headers', CT_HEADER), **kwargs)
 
 
 def _do_put(url, conn, data=None, **kwargs):
@@ -180,8 +183,10 @@ def _do_put(url, conn, data=None, **kwargs):
             kwargs = {}
         kwargs["auth"] = conn.auth
     kwargs["verify"] = conn.verify_ssl
+    if 'headers' in kwargs:
+        kwargs['headers'].update(CT_HEADER)
     logger.debug(url)
-    return requests.put(url, data, **kwargs)
+    return requests.put(url, data, headers=kwargs.get('headers', CT_HEADER), **kwargs)
 
 
 def _do_delete(url, conn, **kwargs):
@@ -207,8 +212,7 @@ def search(connection, type=None, query=None, method="POST", url_params=None):
 
     resp = None
     if method == "POST":
-        headers = {"content-type": "application/json"}
-        resp = _do_post(url, connection, data=json.dumps(query), headers=headers)
+        resp = _do_post(url, connection, data=json.dumps(query))
     elif method == "GET":
         resp = _do_get(url + "?source=" + urllib.parse.quote_plus(json.dumps(query)), connection)
     return resp
