@@ -410,7 +410,7 @@ def _do_create_index(connection, iurl, mapping, es_version):
     logger.debug(resp.text)
 
     if resp.status_code < 200 or resp.status_code >= 400:
-        raise ESWireException(resp)
+        raise ESWireException(resp.text)
     return resp
 
 
