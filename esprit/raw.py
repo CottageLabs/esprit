@@ -26,7 +26,8 @@ CT_HEADER = {'Content-Type': 'application/json'}
 
 # This is the type used when we are using the index-per type mapping pattern (ES < 7.0)
 # Ideally, this would be '_doc' but underscores were disallowed until ES 6.2
-INDEX_PER_TYPE_SUBSTITUTE = 'doc'
+# fixme: do we need to introduce a version switch for this?
+INDEX_PER_TYPE_SUBSTITUTE = '_doc'
 
 logger = logging.getLogger(__name__)
 

@@ -1,6 +1,6 @@
 def fields_query(v):
     # fields queries were deprecated in 5.0
-    if v.startswith("5"):
+    if int(v[0]) >= 5:
         return False
     return True
 
@@ -14,10 +14,10 @@ def type_get(v):
 
 
 def create_with_mapping_post(v):
-    return not v.startswith("5")
+    return int(v[0]) < 5
 
 
 def source_include(v):
-    if v.startswith("5"):
+    if int(v[0]) >= 5:
         return False
     return True
