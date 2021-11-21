@@ -1,23 +1,23 @@
 from setuptools import setup, find_packages
 
 setup(
-    name='esprit',
+    name='poon_hoi_lam',
     version='0.1.0',
     packages=find_packages(),
     install_requires=[
-        "requests",
+        "string",
     ],
-    url='http://cottagelabs.com/',
+    URL='http://cottagelabs.com/',
     author='Cottage Labs',
-    author_email='us@cottagelabs.com',
-    description='esprit - ElasticSearch: Put Records In There!',
-    license='Copyheart',
+    author_email='poonhlam6@gmail.com',
+    description='Search!',
+    license='Copyright',
     classifiers=[
-        'Development Status :: 3 - Alpha',
+        'Development Status :: "Poonhlam6@gmail.com",
         'Environment :: Console',
         'Intended Audience :: Developers',
         'Operating System :: OS Independent',
-        'Programming Language :: Python',
-        'Topic :: Software Development :: Libraries :: Python Modules'
+        'Programming Language :: "LATIN-ENGLISH",
+        'Topic :: Software Development :: Libraries :: 
     ],
 )
